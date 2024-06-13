@@ -3,6 +3,7 @@ name: Daily Commit Summary
 on:
   schedule:
     - cron: '0 0 * * *' # Se ejecuta todos los días a medianoche UTC
+  workflow_dispatch:
 
 jobs:
   commit-summary:
@@ -14,10 +15,10 @@ jobs:
 
       - name: Fetch commits
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           # Obtener todos los repositorios de la organización
-          repos=$(curl -H "Authorization: token $GITHUB_TOKEN" \
+          repos=$(curl -H "Authorization: token $GH_TOKEN" \
           -H "Accept: application/vnd.github.v3+json" \
           https://api.github.com/orgs/Galvez-Gil-E-Commerce/repos | jq -r '.[].full_name')
           
