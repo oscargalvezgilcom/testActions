@@ -1,0 +1,51 @@
+name: Daily Commit Summary
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Se ejecuta todos los días a medianoche UTC
+
+jobs:
+  commit-summary:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Fetch commits
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Obtener todos los repositorios de la organización
+          repos=$(curl -H "Authorization: token $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/orgs/Galvez-Gil-E-Commerce/repos | jq -r '.[].full_name')
+          
+          commits=""
+          
+          # Obtener los commits del día para cada repositorio
+          for repo in $repos; do
+            repo_commits=$(curl -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/$repo/commits?since=$(date -d '1 day ago' --utc +%Y-%m-%dT%H:%M:%SZ)&until=$(date --utc +%Y-%m-%dT%H:%M:%SZ)" \
+            | jq -r '.[] | "* [\(.commit.message)](\(.html_url)) by \(.commit.author.name)"')
+            
+            if [ -n "$repo_commits" ]; then
+              commits="$commits\n\n### $repo\n$repo_commits"
+            fi
+          done
+          
+          echo -e "$commits" > commits.md
+
+      - name: Send email
+        uses: dawidd6/action-send-mail@v2
+        with:
+          server_address: smtp.sendgrid.net
+          server_port: 587
+          username: apikey
+          password: ${{ secrets.SENDGRID_API_KEY }}
+          subject: "Daily Commit Summary"
+          to: oscar@galvezgil.com
+          from: oscar@galvezgil.com
+          content_type: text/markdown
+          content: file://commits.md
