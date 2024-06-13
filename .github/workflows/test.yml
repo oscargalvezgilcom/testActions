@@ -27,7 +27,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          echo $GITHUB_TOKEN | gh auth login --with-token
+          echo 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 | gh auth login --with-token
 
       - name: Fetch commits
         env:
