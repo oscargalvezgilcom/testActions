@@ -1,12 +1,89 @@
+name: Daily Commit Summary TEST
+
 on:
-  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *' # Se ejecuta todos los días a medianoche UTC
+  workflow_dispatch: # Permite ejecutar el flujo de trabajo manualmente
+
 jobs:
-  use_api:
+  commit-summary:
     runs-on: ubuntu-latest
-    permissions:
-      issues: read
+
     steps:
-      - env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up GitHub CLI
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+
+      - name: Install GitHub CLI
         run: |
-          gh api https://api.github.com/repos/octocat/Spoon-Knife/issues
+          sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-key C99B11DEB97541F0
+          echo "deb [arch=amd64] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo apt update
+          sudo apt install gh
+
+      - name: Authenticate GitHub CLI
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          echo $GITHUB_TOKEN | gh auth login --with-token
+
+      - name: Fetch commits
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          echo "Obteniendo la lista de repositorios de la organización..."
+          response=$(gh api -H "Accept: application/vnd.github+json" /orgs/Galvez-Gil-E-Commerce/repos)
+          
+          echo "Respuesta de la API:"
+          echo "$response"
+          
+          repos=$(echo "$response" | jq -r '.[].full_name')
+          
+          if [ -z "$repos" ]; then
+            echo "No se encontraron repositorios o hubo un error al obtener los repositorios."
+            exit 1
+          fi
+          
+          commits=""
+          
+          echo "Iterando sobre los repositorios para obtener los commits del día..."
+          for repo in $repos; do
+            echo "Obteniendo commits para el repositorio $repo..."
+            repo_commits=$(gh api -H "Accept: application/vnd.github+json" \
+            "repos/$repo/commits?since=$(date -d '1 day ago' --utc +%Y-%m-%dT%H:%M:%SZ)&until=$(date --utc +%Y-%m-%dT%H:%M:%SZ)" \
+            | jq -r '.[] | "* [\(.commit.message)](\(.html_url)) by \(.commit.author.name)"')
+            
+            if [ $? -ne 0 ]; then
+              echo "Error al obtener commits para el repositorio $repo."
+              exit 2
+            fi
+            
+            if [ -n "$repo_commits" ]; then
+              commits="$commits\n\n### $repo\n$repo_commits"
+            fi
+          done
+          
+          if [ -z "$commits" ]; then
+            echo "No se encontraron commits para el día."
+            commits="No se encontraron commits para el día."
+          fi
+          
+          echo -e "$commits" > commits.md
+          echo "Commits guardados en commits.md"
+
+      - name: Send email
+        uses: dawidd6/action-send-mail@v2
+        with:
+          server_address: smtp.sendgrid.net
+          server_port: 587
+          username: apikey
+          password: ${{ secrets.SENDGRID_API_KEY }}
+          subject: "Daily Commit Summary"
+          to: oscar@galvezgil.com
+          from: oscar@galvezgil.com
+          content_type: text/markdown
+          content: file://commits.md
