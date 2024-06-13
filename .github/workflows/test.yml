@@ -13,75 +13,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Set up GitHub CLI
-        uses: actions/setup-node@v2
-        with:
-          node-version: '14'
-
-      - name: Install GitHub CLI
-        run: |
-          sudo apt update
-          sudo apt install gh
-
-      - name: Authenticate GitHub CLI
+      - name: Authenticate GitHub
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          gh auth login --with-token
-
-      - name: Fetch commits
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          echo "Obteniendo la lista de repositorios de la organización..."
-          response=$(gh api -H "Accept: application/vnd.github+json" /orgs/Galvez-Gil-E-Commerce/repos)
-          
-          echo "Respuesta de la API:"
-          echo "$response"
-          
-          repos=$(echo "$response" | jq -r '.[].full_name')
-          
-          if [ -z "$repos" ]; then
-            echo "No se encontraron repositorios o hubo un error al obtener los repositorios."
-            exit 1
-          fi
-          
-          commits=""
-          
-          echo "Iterando sobre los repositorios para obtener los commits del día..."
-          for repo in $repos; do
-            echo "Obteniendo commits para el repositorio $repo..."
-            repo_commits=$(gh api -H "Accept: application/vnd.github+json" \
-            "repos/$repo/commits?since=$(date -d '1 day ago' --utc +%Y-%m-%dT%H:%M:%SZ)&until=$(date --utc +%Y-%m-%dT%H:%M:%SZ)" \
-            | jq -r '.[] | "* [\(.commit.message)](\(.html_url)) by \(.commit.author.name)"')
-            
-            if [ $? -ne 0 ]; then
-              echo "Error al obtener commits para el repositorio $repo."
-              exit 2
-            fi
-            
-            if [ -n "$repo_commits" ]; then
-              commits="$commits\n\n### $repo\n$repo_commits"
-            fi
-          done
-          
-          if [ -z "$commits" ]; then
-            echo "No se encontraron commits para el día."
-            commits="No se encontraron commits para el día."
-          fi
-          
-          echo -e "$commits" > commits.md
-          echo "Commits guardados en commits.md"
-
-      - name: Send email
-        uses: dawidd6/action-send-mail@v2
-        with:
-          server_address: smtp.sendgrid.net
-          server_port: 587
-          username: apikey
-          password: ${{ secrets.SENDGRID_API_KEY }}
-          subject: "Daily Commit Summary"
-          to: oscar@galvezgil.com
-          from: oscar@galvezgil.com
-          content_type: text/markdown
-          content: file://commits.md
+          curl -L \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer $GITHUB_TOKEN" \
+          https://api.github.com/orgs/ORG/repos
