@@ -1,8 +1,8 @@
 name: Daily Commit Summary TEST
 
 on:
-  schedule:
-    - cron: '0 0 * * *' # Se ejecuta todos los días a medianoche UTC
+  # schedule:
+    # - cron: '0 0 * * *' # Se ejecuta todos los días a medianoche UTC
   workflow_dispatch: # Permite ejecutar el flujo de trabajo manualmente
 
 jobs:
